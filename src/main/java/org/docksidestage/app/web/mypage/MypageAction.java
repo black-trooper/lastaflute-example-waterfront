@@ -15,8 +15,13 @@
  */
 package org.docksidestage.app.web.mypage;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Resource;
 
@@ -27,38 +32,63 @@ import org.docksidestage.dbflute.exentity.Product;
 import org.lastaflute.web.Execute;
 import org.lastaflute.web.response.HtmlResponse;
 import org.lastaflute.web.response.JsonResponse;
+import org.lastaflute.web.response.StreamResponse;
+import org.lastaflute.web.servlet.request.ResponseManager;
 
 /**
  * @author jflute
  */
 public class MypageAction extends WaterfrontBaseAction {
 
-    @Resource
-    protected ProductBhv productBhv;
+	@Resource
+	protected ProductBhv productBhv;
+	@Resource
+	private ResponseManager responseManager;
 
-    @Execute
-    public HtmlResponse index() {
-        ListResultBean<Product> productList = productBhv.selectList(cb -> {
-            cb.query().addOrderBy_RegularPrice_Desc();
-            cb.fetchFirst(3);
-        });
-        List<MypageProductBean> beans = productList.stream().map(member -> {
-            return new MypageProductBean(member);
-        }).collect(Collectors.toList());
-        return asHtml(path_Mypage_MypageJsp).renderWith(data -> {
-            data.register("beans", beans);
-        });
-    }
+	@Execute
+	public HtmlResponse index() {
+		ListResultBean<Product> productList = productBhv.selectList(cb -> {
+			cb.query().addOrderBy_RegularPrice_Desc();
+			cb.fetchFirst(3);
+		});
+		List<MypageProductBean> beans = productList.stream().map(member -> {
+			return new MypageProductBean(member);
+		}).collect(Collectors.toList());
+		return asHtml(path_Mypage_MypageJsp).renderWith(data -> {
+			data.register("beans", beans);
+		});
+	}
 
-    @Execute
-    public JsonResponse<List<MypageProductBean>> indexJson() {
-        ListResultBean<Product> memberList = productBhv.selectList(cb -> {
-            cb.query().addOrderBy_RegularPrice_Desc();
-            cb.fetchFirst(3);
-        });
-        List<MypageProductBean> beans = memberList.stream().map(member -> {
-            return new MypageProductBean(member);
-        }).collect(Collectors.toList());
-        return asJson(beans);
-    }
+	@Execute
+	public JsonResponse<List<MypageProductBean>> indexJson() {
+		ListResultBean<Product> memberList = productBhv.selectList(cb -> {
+			cb.query().addOrderBy_RegularPrice_Desc();
+			cb.fetchFirst(3);
+		});
+		List<MypageProductBean> beans = memberList.stream().map(member -> {
+			return new MypageProductBean(member);
+		}).collect(Collectors.toList());
+		return asJson(beans);
+	}
+
+	public StreamResponse download(List<Map<String, Object>> queryList) {
+		try (ZipOutputStream zos = new ZipOutputStream(responseManager.getResponse().getOutputStream())) {
+			for (Map<String, Object> query : queryList) {
+				try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+					pdfExecuteQuery(baos, query.get("condition"));
+					zos.putNextEntry(new ZipEntry(query.get("fileName").toString()));
+					baos.writeTo(zos);
+				} finally {
+					zos.closeEntry();
+				}
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return StreamResponse.asEmptyBody();
+	}
+
+	private void pdfExecuteQuery(ByteArrayOutputStream baos, Object object) {
+		// ...
+	}
 }
