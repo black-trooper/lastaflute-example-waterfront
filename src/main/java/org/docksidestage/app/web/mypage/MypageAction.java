@@ -17,8 +17,12 @@ package org.docksidestage.app.web.mypage;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.Charset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -71,24 +75,52 @@ public class MypageAction extends WaterfrontBaseAction {
 		return asJson(beans);
 	}
 
-	public StreamResponse download(List<Map<String, Object>> queryList) {
-		try (ZipOutputStream zos = new ZipOutputStream(responseManager.getResponse().getOutputStream())) {
-			for (Map<String, Object> query : queryList) {
+	@Execute
+	public StreamResponse outputstreamSample() {
+		Map<String, String> paramMap = new HashMap<>();
+
+		// 実際にはDBから
+		paramMap.put("サンプル1.txt", "あああ");
+		paramMap.put("サンプル2.txt", "いいい");
+
+		/**
+		 * asChunkedTransferメソッドを使用することで引数のoutと
+		 * responseManager.getResponse().getOutputStream()が連結するイメージ
+		 * チャンク送信になる想定ですが、asStream("").transferEncoding("chuncked").asOutput(out -> {...});
+		 * のような形でも問題ありません。
+		 */
+		return asStream("テスト.zip").contentType("application/zip").asChunkedTransfer(out -> {
+
+			// 複数のデータをzipにして出力する
+				zipWriter(out, paramMap);
+			});
+	}
+
+	/**
+	 * 複数のデータをzipにして出力
+	 * @param os 出力ストリーム
+	 * @param paramMap パラメータ
+	 */
+	public void zipWriter(OutputStream os, Map<String, String> paramMap) {
+
+		try (ZipOutputStream zos = new ZipOutputStream(os, Charset.forName("UTF-8"))) {
+			for (Entry<String, String> param : paramMap.entrySet()) {
 				try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-					pdfExecuteQuery(baos, query.get("condition"));
-					zos.putNextEntry(new ZipEntry(query.get("fileName").toString()));
+
+					executeQuery(baos, param.getValue());
+
+					zos.putNextEntry(new ZipEntry(param.getKey()));
 					baos.writeTo(zos);
 				} finally {
 					zos.closeEntry();
 				}
 			}
 		} catch (IOException e) {
-			e.printStackTrace();
+			throw new RuntimeException(e);
 		}
-		return StreamResponse.asEmptyBody();
 	}
 
-	private void pdfExecuteQuery(ByteArrayOutputStream baos, Object object) {
+	private void executeQuery(ByteArrayOutputStream baos, Object object) {
 		// ...
 	}
 }
